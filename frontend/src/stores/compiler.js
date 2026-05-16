@@ -1,24 +1,30 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { compilerApi, dialectApi, connectionApi } from '../services/api.js'
+import { compilerApi, dialectApi, connectionApi, catalogApi } from '../services/api.js'
 
 export const useCompilerStore = defineStore('compiler', () => {
-  // Estado
+
+  // ── Estado principal ──────────────────────────────────────────────
   const sql          = ref('SELECT * FROM usuarios WHERE edad > 18;')
   const dialect      = ref('MYSQL')
   const connectionId = ref(null)
   const result       = ref(null)
   const loading      = ref(false)
-  const dialects     = ref([])
-  const connections  = ref([])
-  const schema       = ref(null)
 
-  // Getters
-  const hasErrors   = computed(() => result.value?.errors?.length > 0)
+  // ── Catálogos ─────────────────────────────────────────────────────
+  const dialects    = ref([])
+  const connections = ref([])
+  const schema      = ref(null)
+
+  // Keywords del dialecto activo (para autocompletado Monaco)
+  const dialectKeywords = ref([])
+
+  // ── Getters ───────────────────────────────────────────────────────
+  const hasErrors   = computed(() => result.value?.errors?.length  > 0)
   const hasWarnings = computed(() => result.value?.warnings?.length > 0)
   const isValid     = computed(() => result.value?.valid === true)
 
-  // Acciones
+  // ── Acciones: compilador ──────────────────────────────────────────
   async function compile() {
     loading.value = true
     result.value  = null
@@ -27,18 +33,38 @@ export const useCompilerStore = defineStore('compiler', () => {
     } catch (e) {
       result.value = {
         valid: false,
-        errors: [{ phase: 'NETWORK', line: 0, column: 0, message: e.message, severity: 'ERROR' }],
-        warnings: []
+        errors:   [{ phase: 'NETWORK', line: 0, column: 0, message: e.message, severity: 'ERROR' }],
+        warnings: [],
       }
     } finally {
       loading.value = false
     }
   }
 
+  // ── Acciones: dialectos ───────────────────────────────────────────
   async function loadDialects() {
     dialects.value = await dialectApi.getAll()
+    if (dialects.value.length && !dialect.value) {
+      dialect.value = dialects.value[0].name
+    }
+    await loadDialectKeywords()
   }
 
+  async function setDialect(name) {
+    dialect.value = name
+    await loadDialectKeywords()
+  }
+
+  async function loadDialectKeywords() {
+    if (!dialect.value) return
+    try {
+      dialectKeywords.value = await catalogApi.getKeywords(dialect.value)
+    } catch (e) {
+      dialectKeywords.value = []
+    }
+  }
+
+  // ── Acciones: conexiones ──────────────────────────────────────────
   async function loadConnections() {
     connections.value = await connectionApi.getAll()
   }
@@ -54,16 +80,14 @@ export const useCompilerStore = defineStore('compiler', () => {
     connections.value = connections.value.filter(c => c.id !== id)
     if (connectionId.value === id) {
       connectionId.value = null
-      schema.value = null
+      schema.value       = null
     }
   }
 
   async function selectConnection(id) {
     connectionId.value = id
-    schema.value = null
-    if (id) {
-      schema.value = await connectionApi.getSchema(id)
-    }
+    schema.value       = null
+    if (id) schema.value = await connectionApi.getSchema(id)
   }
 
   async function testConnection(form) {
@@ -71,10 +95,15 @@ export const useCompilerStore = defineStore('compiler', () => {
   }
 
   return {
+    // estado
     sql, dialect, connectionId, result, loading,
-    dialects, connections, schema,
+    dialects, connections, schema, dialectKeywords,
+    // getters
     hasErrors, hasWarnings, isValid,
-    compile, loadDialects, loadConnections,
-    saveConnection, deleteConnection, selectConnection, testConnection
+    // acciones
+    compile,
+    loadDialects, setDialect, loadDialectKeywords,
+    loadConnections, saveConnection, deleteConnection,
+    selectConnection, testConnection,
   }
 })
