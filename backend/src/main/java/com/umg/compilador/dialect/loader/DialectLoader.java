@@ -5,7 +5,8 @@ import com.umg.compilador.dialect.DBDialect;
 import com.umg.compilador.model.*;
 import com.umg.compilador.repository.*;
 import com.umg.compilador.schema.*;
-import jakarta.annotation.PostConstruct;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -44,7 +45,12 @@ public class DialectLoader {
         this.syntaxRepo      = syntaxRepo;
     }
 
-    @PostConstruct
+    /**
+     * ApplicationReadyEvent se dispara DESPUÉS de que Spring ejecuta
+     * schema.sql y data.sql — garantiza que las tablas ya existen.
+     * @PostConstruct se disparaba ANTES y causaba "Table doesn't exist".
+     */
+    @EventListener(ApplicationReadyEvent.class)
     public void load() {
         List<DialectEntity> dialects = dialectRepo.findAllWithKeywords();
         dialects.forEach(entity -> {
@@ -56,6 +62,11 @@ public class DialectLoader {
     }
 
     public Map<String, DBDialect> getLoaded() {
+        if (loaded.isEmpty()) {
+            // Carga bajo demanda si ApplicationReadyEvent aún no disparó
+            // (puede ocurrir en tests o llamadas tempranas)
+            load();
+        }
         return Collections.unmodifiableMap(loaded);
     }
 

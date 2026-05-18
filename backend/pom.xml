@@ -29,29 +29,49 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Spring Data JPA — entidades, repositorios, JPQL -->
+        <!-- Spring Data JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
 
-        <!-- ── JDBC drivers — motores que el compilador valida ── -->
+        <!--
+            ══════════════════════════════════════════════════════════
+            BD DEL COMPILADOR → MariaDB
+            Driver oficial de MariaDB (reemplaza mysql-connector-j
+            para la BD interna del compilador).
+            También funciona para compilar queries MySQL del usuario
+            ya que MariaDB es compatible con el protocolo MySQL.
+            ══════════════════════════════════════════════════════════
+        -->
+        <dependency>
+            <groupId>org.mariadb.jdbc</groupId>
+            <artifactId>mariadb-java-client</artifactId>
+            <scope>runtime</scope>
+            <!-- Spring Boot 3.2.x gestiona la versión automáticamente -->
+        </dependency>
 
-        <!-- MySQL — también usada como BD del compilador -->
+        <!--
+            Si el usuario quiere conectar a un MySQL puro (no MariaDB)
+            también se puede mantener el conector MySQL aquí.
+            Por defecto lo dejamos comentado para no tener conflictos.
+        -->
+        <!--
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+        -->
 
-        <!-- PostgreSQL -->
+        <!-- PostgreSQL — para conexiones de usuario -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
 
-        <!-- SQL Server -->
+        <!-- SQL Server — para conexiones de usuario -->
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
