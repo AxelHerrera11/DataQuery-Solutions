@@ -1,6 +1,6 @@
 package com.umg.compilador.service;
 
-import com.umg.compilador.compiler.ast.ASTNode.SelectNode;
+import com.umg.compilador.compiler.ast.ASTNode.*;
 import com.umg.compilador.compiler.lexer.*;
 import com.umg.compilador.compiler.parser.*;
 import com.umg.compilador.compiler.semantic.*;
@@ -15,11 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/**
- * CompilerService — orquesta el pipeline completo de compilación.
- * Equivalente a SqlCompiler.compile() del proyecto base,
- * pero devuelve un CompileResponse en lugar de imprimir en consola.
- */
 @Service
 public class CompilerService {
 
@@ -41,7 +36,6 @@ public class CompilerService {
                 failed("Léxico"), skipped("Sintáctico"), skipped("Semántico"));
         }
 
-        // Obtener dialecto (default MYSQL si no se especifica)
         String dialectName = request.dialect() != null ? request.dialect() : "MYSQL";
         DBDialect dialect  = dialectRegistry.findByName(dialectName)
             .orElseGet(() -> dialectRegistry.findByName("MYSQL").orElseThrow());
@@ -60,7 +54,7 @@ public class CompilerService {
         }
 
         // ── FASE 2: SINTÁCTICO ────────────────────────────────────────
-        SelectNode ast;
+        StatementNode ast;
         try {
             Parser parser = new Parser(tokens);
             ast = parser.parse();
@@ -121,7 +115,7 @@ public class CompilerService {
     }
 
     private CompileResponse response(boolean valid, List<CompileError> errors,
-            List<CompileError> warnings, SelectNode ast,
+            List<CompileError> warnings, StatementNode ast,
             CompileResponse.PhaseResult lexer,
             CompileResponse.PhaseResult parser,
             CompileResponse.PhaseResult semantic) {
@@ -129,30 +123,244 @@ public class CompilerService {
         return new CompileResponse(valid, errors, warnings, astJson, lexer, parser, semantic);
     }
 
-    private String astToJson(SelectNode n) {
+    private String astToJson(StatementNode node) {
+        return switch (node) {
+            case SelectNode n      -> selectToJson(n);
+            case InsertNode n      -> insertToJson(n);
+            case UpdateNode n      -> updateToJson(n);
+            case DeleteNode n      -> deleteToJson(n);
+            case CreateTableNode n -> createTableToJson(n);
+            case DropTableNode n   -> dropTableToJson(n);
+            case AlterTableNode n  -> alterTableToJson(n);
+            case TransactionNode n -> transactionToJson(n);
+            case GrantNode n       -> grantToJson(n);
+            case RevokeNode n      -> revokeToJson(n);
+            case CreateIndexNode n -> createIndexToJson(n);
+        };
+    }
+
+    // ── JSON serializers per node type ───────────────────────────────
+
+    private String selectToJson(SelectNode n) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"type\":\"SelectNode\",");
-        sb.append("\"selectAll\":").append(n.isSelectAll()).append(",");
+        sb.append("\"selectAll\":").append(n.selectAll()).append(",");
         sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
-        if (!n.isSelectAll()) {
+        if (!n.selectAll()) {
             sb.append("\"columns\":[");
             for (int i = 0; i < n.columns().size(); i++) {
                 sb.append("\"").append(n.columns().get(i)).append("\"");
-                if (i < n.columns().size()-1) sb.append(",");
+                if (i < n.columns().size() - 1) sb.append(",");
             }
             sb.append("],");
         }
-        if (n.hasWhere()) {
-            var w = n.whereCondition();
-            sb.append("\"where\":{");
-            sb.append("\"left\":\"").append(w.left().value()).append("\",");
-            sb.append("\"operator\":\"").append(w.operator().symbol()).append("\",");
-            sb.append("\"right\":\"").append(w.right().value()).append("\"");
-            sb.append("}");
-        } else {
-            sb.append("\"where\":null");
+        if (n.hasJoins()) {
+            sb.append("\"joins\":[");
+            for (int i = 0; i < n.joins().size(); i++) {
+                if (i > 0) sb.append(",");
+                var j = n.joins().get(i);
+                sb.append("{\"type\":\"").append(j.type()).append("\",");
+                sb.append("\"table\":\"").append(j.tableName()).append("\",");
+                sb.append("\"condition\":").append(conditionToJson(j.condition())).append("}");
+            }
+            sb.append("],");
+        }
+        sb.append("\"where\":").append(conditionToJson(n.whereCondition()));
+        if (n.hasGroupBy()) {
+            sb.append(",\"groupBy\":[");
+            for (int i = 0; i < n.groupBy().size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append("\"").append(n.groupBy().get(i)).append("\"");
+            }
+            sb.append("]");
+        }
+        if (n.hasHaving()) {
+            sb.append(",\"having\":").append(conditionToJson(n.having()));
+        }
+        if (n.hasOrderBy()) {
+            sb.append(",\"orderBy\":[");
+            for (int i = 0; i < n.orderBy().size(); i++) {
+                if (i > 0) sb.append(",");
+                var o = n.orderBy().get(i);
+                sb.append("{\"column\":\"").append(o.column()).append("\",");
+                sb.append("\"order\":\"").append(o.order()).append("\"}");
+            }
+            sb.append("]");
+        }
+        if (n.hasLimit()) {
+            sb.append(",\"limit\":").append(n.limit());
+        }
+        if (n.hasOffset()) {
+            sb.append(",\"offset\":").append(n.offset());
         }
         sb.append("}");
         return sb.toString();
+    }
+
+    private String insertToJson(InsertNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"InsertNode\",");
+        sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
+        if (!n.columns().isEmpty()) {
+            sb.append("\"columns\":[");
+            for (int i = 0; i < n.columns().size(); i++) {
+                sb.append("\"").append(n.columns().get(i)).append("\"");
+                if (i < n.columns().size() - 1) sb.append(",");
+            }
+            sb.append("],");
+        }
+        if (n.isValuesInsert()) {
+            sb.append("\"values\":[");
+            for (int r = 0; r < n.values().size(); r++) {
+                if (r > 0) sb.append(",");
+                sb.append("[");
+                var row = n.values().get(r);
+                for (int c = 0; c < row.size(); c++) {
+                    if (c > 0) sb.append(",");
+                    sb.append("\"").append(escapeJson(row.get(c).value())).append("\"");
+                }
+                sb.append("]");
+            }
+            sb.append("]");
+        }
+        if (n.isSelectInsert()) {
+            sb.append(",\"selectQuery\":").append(selectToJson(n.selectQuery()));
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String updateToJson(UpdateNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"UpdateNode\",");
+        sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
+        sb.append("\"set\":[");
+        for (int i = 0; i < n.assignments().size(); i++) {
+            if (i > 0) sb.append(",");
+            var a = n.assignments().get(i);
+            sb.append("{\"column\":\"").append(a.column()).append("\",");
+            sb.append("\"value\":\"").append(escapeJson(a.value().value())).append("\"}");
+        }
+        sb.append("],");
+        sb.append("\"where\":").append(conditionToJson(n.whereCondition()));
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String deleteToJson(DeleteNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"DeleteNode\",");
+        sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
+        sb.append("\"where\":").append(conditionToJson(n.whereCondition()));
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String createTableToJson(CreateTableNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"CreateTableNode\",");
+        sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
+        sb.append("\"ifNotExists\":").append(n.ifNotExists()).append(",");
+        sb.append("\"columns\":[");
+        for (int i = 0; i < n.columns().size(); i++) {
+            if (i > 0) sb.append(",");
+            var c = n.columns().get(i);
+            sb.append("{\"name\":\"").append(c.name()).append("\",");
+            sb.append("\"type\":\"").append(c.type()).append("\"");
+            if (!c.constraints().isEmpty()) {
+                sb.append(",\"constraints\":[");
+                for (int j = 0; j < c.constraints().size(); j++) {
+                    if (j > 0) sb.append(",");
+                    sb.append("\"").append(c.constraints().get(j)).append("\"");
+                }
+                sb.append("]");
+            }
+            sb.append("}");
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    private String dropTableToJson(DropTableNode n) {
+        return "{\"type\":\"DropTableNode\",\"tableName\":\""
+            + n.tableName() + "\",\"ifExists\":" + n.ifExists() + "}";
+    }
+
+    private String alterTableToJson(AlterTableNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"AlterTableNode\",");
+        sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
+        sb.append("\"alterType\":\"").append(n.alterType()).append("\",");
+        sb.append("\"targetName\":\"").append(n.targetName()).append("\"");
+        if (n.dataType() != null)
+            sb.append(",\"dataType\":\"").append(n.dataType()).append("\"");
+        sb.append("}");
+        return sb.toString();
+    }
+
+    private String transactionToJson(TransactionNode n) {
+        return "{\"type\":\"TransactionNode\",\"txnType\":\"" + n.txnType() + "\"}";
+    }
+
+    private String grantToJson(GrantNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"GrantNode\",");
+        sb.append("\"privileges\":[");
+        for (int i = 0; i < n.privileges().size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append("\"").append(n.privileges().get(i)).append("\"");
+        }
+        sb.append("],");
+        sb.append("\"object\":\"").append(n.object()).append("\",");
+        sb.append("\"user\":\"").append(n.user()).append("\"}");
+        return sb.toString();
+    }
+
+    private String revokeToJson(RevokeNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"RevokeNode\",");
+        sb.append("\"privileges\":[");
+        for (int i = 0; i < n.privileges().size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append("\"").append(n.privileges().get(i)).append("\"");
+        }
+        sb.append("],");
+        sb.append("\"object\":\"").append(n.object()).append("\",");
+        sb.append("\"user\":\"").append(n.user()).append("\"}");
+        return sb.toString();
+    }
+
+    private String createIndexToJson(CreateIndexNode n) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"type\":\"CreateIndexNode\",");
+        sb.append("\"indexName\":\"").append(n.indexName()).append("\",");
+        sb.append("\"tableName\":\"").append(n.tableName()).append("\",");
+            sb.append("\"unique\":").append(n.unique()).append(",");
+        sb.append("\"columns\":[");
+        for (int i = 0; i < n.columns().size(); i++) {
+            if (i > 0) sb.append(",");
+            sb.append("\"").append(n.columns().get(i)).append("\"");
+        }
+        sb.append("]}");
+        return sb.toString();
+    }
+
+    private String conditionToJson(Condition cond) {
+        if (cond == null) return "null";
+        return switch (cond) {
+            case SimpleCondition sc ->
+                "{\"left\":\"" + escapeJson(sc.left().value())
+                + "\",\"operator\":\"" + sc.operator().symbol()
+                + "\",\"right\":\"" + escapeJson(sc.right().value()) + "\"}";
+            case CompoundCondition cc ->
+                "{\"operator\":\"" + cc.operator()
+                + "\",\"left\":" + conditionToJson(cc.left())
+                + ",\"right\":" + conditionToJson(cc.right()) + "}";
+        };
+    }
+
+    private String escapeJson(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
