@@ -18,8 +18,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- SECCIÓN 1: DIALECTOS
 -- =============================================================================
 INSERT IGNORE INTO dialect (name, display_name, default_port, brand_color, driver_class, supports_txn, jdbc_url_pattern, since_version, notes) VALUES
-('MYSQL',      'MySQL 8.x',        3306,  '#4479A1', 'org.mariadb.jdbc.Driver',                     1, 'jdbc:mariadb://{host}:{port}/{db}?useSSL=false&serverTimezone=UTC', '5.0',  'Motor relacional más usado en la web'),
-('POSTGRESQL', 'PostgreSQL 15+',   5432,  '#336791', 'org.postgresql.Driver',                        1, 'jdbc:postgresql://{host}:{port}/{db}',                             '9.0',  'Motor objeto-relacional, muy completo en estándares SQL'),
+('MYSQL',      'MySQL 8.x',        3306,  '#4479A1', 'com.mysql.cj.jdbc.Driver',                     1, 'jdbc:mysql://{host}:{port}/{db}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true', '5.0',  'Motor relacional más usado en la web'),
+('POSTGRESQL', 'PostgreSQL 15+',   5432,  '#336791', 'org.postgresql.Driver',                        1, 'jdbc:postgresql://{host}:{port}/{db}?sslmode=disable',             '9.0',  'Motor objeto-relacional, muy completo en estándares SQL'),
 ('SQLSERVER',  'SQL Server 2019+', 1433,  '#CC2927', 'com.microsoft.sqlserver.jdbc.SQLServerDriver',  1, 'jdbc:sqlserver://{host}:{port};databaseName={db};encrypt=false',   '2008', 'Motor empresarial de Microsoft'),
 ('MONGODB',    'MongoDB 6+',       27017, '#47A248', '',                                             0, 'mongodb://{host}:{port}/{db}',                                     '4.0',  'Motor NoSQL orientado a documentos');
 

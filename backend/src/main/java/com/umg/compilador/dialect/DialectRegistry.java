@@ -25,8 +25,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class DialectRegistry {
 
-    //cometar
-
     private final DialectLoader loader;
     private final Map<String, DBDialect> hardcoded = new LinkedHashMap<>();
 
