@@ -30,7 +30,7 @@ public class PostgreSQLDialect implements DBDialect {
 
     @Override
     public String buildJdbcUrl(ConnectionConfig c) {
-        return "jdbc:postgresql://%s:%d/%s".formatted(c.host(), c.port(), c.database());
+        return "jdbc:postgresql://%s:%d/%s?sslmode=disable".formatted(c.host(), c.port(), c.database());
     }
 
     @Override

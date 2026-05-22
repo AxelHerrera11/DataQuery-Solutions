@@ -14,7 +14,7 @@ public class MySQLDialect implements DBDialect {
     @Override public int    getDefaultPort() { return 3306; }
     @Override public String getBrandColor()  { return "#4479A1"; }
     @Override public boolean supportsTransactions() { return true; }
-    @Override public String getDriverClass() { return "org.mariadb.jdbc.Driver"; }
+    @Override public String getDriverClass() { return "com.mysql.cj.jdbc.Driver"; }
 
     @Override
     public Set<String> getDialectKeywords() {
