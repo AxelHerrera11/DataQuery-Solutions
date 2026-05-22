@@ -3,6 +3,7 @@ package com.umg.compilador.controller;
 import com.umg.compilador.connection.ConnectionResult;
 import com.umg.compilador.dto.*;
 import com.umg.compilador.service.ConnectionService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,7 +27,7 @@ public class ConnectionController {
 
     /** POST /api/connections — guarda una nueva conexión */
     @PostMapping
-    public ResponseEntity<ConnectionDTO> save(@RequestBody ConnectionRequest request) {
+    public ResponseEntity<ConnectionDTO> save(@Valid @RequestBody ConnectionRequest request) {
         return ResponseEntity.ok(connectionService.save(request));
     }
 
@@ -39,7 +40,7 @@ public class ConnectionController {
 
     /** POST /api/connections/test — prueba sin guardar */
     @PostMapping("/test")
-    public ResponseEntity<ConnectionResult> test(@RequestBody ConnectionRequest request) {
+    public ResponseEntity<ConnectionResult> test(@Valid @RequestBody ConnectionRequest request) {
         return ResponseEntity.ok(connectionService.test(request));
     }
 

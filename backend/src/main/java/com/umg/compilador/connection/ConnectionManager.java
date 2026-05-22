@@ -2,6 +2,8 @@ package com.umg.compilador.connection;
 
 import com.umg.compilador.dialect.DBDialect;
 import com.umg.compilador.dialect.DialectRegistry;
+import com.umg.compilador.model.SavedConnectionEntity;
+import com.umg.compilador.repository.SavedConnectionRepository;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -10,26 +12,42 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * ConnectionManager — crea y cachea conexiones JDBC.
- * Las conexiones se guardan por connectionId para reutilizarse
- * en múltiples compilaciones sin reconectar cada vez.
- */
 @Component
 public class ConnectionManager {
 
-    private final DialectRegistry dialectRegistry;
+    private final DialectRegistry           dialectRegistry;
+    private final SavedConnectionRepository repository;
+    private final PasswordEncryptor         encryptor;
+    private final Map<String, Connection>   pool    = new ConcurrentHashMap<>();
     private final Map<String, ConnectionConfig> configs = new ConcurrentHashMap<>();
-    private final Map<String, Connection>       pool    = new ConcurrentHashMap<>();
 
-    public ConnectionManager(DialectRegistry dialectRegistry) {
+    public ConnectionManager(DialectRegistry dialectRegistry,
+                             SavedConnectionRepository repository,
+                             PasswordEncryptor encryptor) {
         this.dialectRegistry = dialectRegistry;
+        this.repository      = repository;
+        this.encryptor       = encryptor;
+        loadFromDatabase();
+    }
+
+    private void loadFromDatabase() {
+        repository.findAllByOrderByUpdatedAtDesc().forEach(entity -> {
+            configs.put(entity.getId(), new ConnectionConfig(
+                entity.getId(), entity.getName(), entity.getDialect(),
+                entity.getHost(), entity.getPort(), entity.getDatabaseName(),
+                entity.getUsername(), encryptor.decrypt(entity.getEncryptedPassword())
+            ));
+        });
     }
 
     public void saveConfig(ConnectionConfig config) {
         configs.put(config.id(), config);
-        // Si ya había una conexión activa para este ID, la cerramos
         closeConnection(config.id());
+        repository.save(new SavedConnectionEntity(
+            config.id(), config.name(), config.dialect(),
+            config.host(), config.port(), config.database(),
+            config.username(), encryptor.encrypt(config.password())
+        ));
     }
 
     public Optional<ConnectionConfig> getConfig(String id) {
@@ -43,12 +61,9 @@ public class ConnectionManager {
     public void removeConfig(String id) {
         closeConnection(id);
         configs.remove(id);
+        repository.deleteById(id);
     }
 
-    /**
-     * Obtiene una conexión activa (desde caché o creando una nueva).
-     * @throws RuntimeException si el dialecto no existe o la conexión falla
-     */
     public Connection getConnection(String connectionId) {
         Connection existing = pool.get(connectionId);
         try {
@@ -56,10 +71,15 @@ public class ConnectionManager {
         } catch (SQLException ignored) {}
 
         ConnectionConfig config = configs.get(connectionId);
-        if (config == null) throw new IllegalArgumentException("Conexión no encontrada: " + connectionId);
+        if (config == null)
+            throw new IllegalArgumentException("Conexión no encontrada: " + connectionId);
 
         DBDialect dialect = dialectRegistry.findByName(config.dialect())
             .orElseThrow(() -> new IllegalArgumentException("Dialecto desconocido: " + config.dialect()));
+
+        if (DialectRegistry.isNativeDriver(config.dialect())) {
+            return null;
+        }
 
         try {
             Class.forName(dialect.getDriverClass());
@@ -83,13 +103,21 @@ public class ConnectionManager {
         }
     }
 
-    /**
-     * Prueba una conexión sin guardarla.
-     */
     public ConnectionResult testConnection(ConnectionConfig config) {
         DBDialect dialect = dialectRegistry.findByName(config.dialect())
             .orElse(null);
-        if (dialect == null) return ConnectionResult.fail("Dialecto desconocido: " + config.dialect());
+        if (dialect == null)
+            return ConnectionResult.fail("Dialecto desconocido: " + config.dialect());
+
+        if (DialectRegistry.isNativeDriver(config.dialect())) {
+            try {
+                String uri = dialect.buildJdbcUrl(config);
+                com.mongodb.client.MongoClients.create(uri).close();
+                return ConnectionResult.ok("Conexión exitosa");
+            } catch (Exception e) {
+                return ConnectionResult.fail(e.getMessage());
+            }
+        }
 
         try {
             Class.forName(dialect.getDriverClass());
