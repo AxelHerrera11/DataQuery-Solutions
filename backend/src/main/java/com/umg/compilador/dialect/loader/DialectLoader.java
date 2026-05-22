@@ -5,6 +5,8 @@ import com.umg.compilador.dialect.DBDialect;
 import com.umg.compilador.model.*;
 import com.umg.compilador.repository.*;
 import com.umg.compilador.schema.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -26,6 +28,8 @@ import java.util.stream.Collectors;
  */
 @Component
 public class DialectLoader {
+
+    private static final Logger log = LoggerFactory.getLogger(DialectLoader.class);
 
     private final DialectRepository          dialectRepo;
     private final KeywordRepository          keywordRepo;
@@ -57,8 +61,7 @@ public class DialectLoader {
             DBDialect dynamic = buildDynamic(entity);
             loaded.put(entity.getName().toUpperCase(), dynamic);
         });
-        System.out.printf("[DialectLoader] %d dialectos cargados desde BD: %s%n",
-            loaded.size(), loaded.keySet());
+        log.info("{} dialectos cargados desde BD: {}", loaded.size(), loaded.keySet());
     }
 
     public Map<String, DBDialect> getLoaded() {

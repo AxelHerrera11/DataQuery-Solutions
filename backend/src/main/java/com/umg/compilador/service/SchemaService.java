@@ -14,9 +14,6 @@ import java.sql.Connection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * SchemaService — carga y cachea el schema de cada conexión.
- */
 @Service
 public class SchemaService {
 
@@ -29,14 +26,10 @@ public class SchemaService {
         this.dialectRegistry   = dialectRegistry;
     }
 
-    /**
-     * Obtiene el schema (desde caché o extrayéndolo en tiempo real).
-     */
     public DatabaseSchema getSchema(String connectionId) {
         return schemaCache.computeIfAbsent(connectionId, this::fetchSchema);
     }
 
-    /** Fuerza re-extracción del schema (útil tras cambios en la BD). */
     public DatabaseSchema refreshSchema(String connectionId) {
         schemaCache.remove(connectionId);
         return getSchema(connectionId);
@@ -49,13 +42,19 @@ public class SchemaService {
         DBDialect dialect = dialectRegistry.findByName(config.dialect())
             .orElseThrow(() -> new IllegalArgumentException("Dialecto desconocido: " + config.dialect()));
 
-        if (dialect instanceof MongoDialect mongoDial) {
-            String mongoUri = dialect.buildJdbcUrl(config);
-            try (MongoClient client = MongoClients.create(mongoUri)) {
-                return mongoDial.extractSchemaFromClient(client, config.database());
+        // Native drivers (MongoDB) — no usan JDBC
+        if (DialectRegistry.isNativeDriver(config.dialect())) {
+            String uri = dialect.buildJdbcUrl(config);
+            try (MongoClient client = MongoClients.create(uri)) {
+                if (dialect instanceof MongoDialect mongoDial) {
+                    return mongoDial.extractSchemaFromClient(client, config.database());
+                }
+                // Fallback: extract using interface
+                return dialect.extractSchema(null, config.database());
             }
         }
 
+        // JDBC-based dialects
         Connection conn = connectionManager.getConnection(connectionId);
         return dialect.extractSchema(conn, config.database());
     }

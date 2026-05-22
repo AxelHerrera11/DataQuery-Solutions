@@ -6,6 +6,7 @@
 -- =============================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS saved_connection;
 DROP TABLE IF EXISTS statement_keyword;
 DROP TABLE IF EXISTS statement_syntax;
 DROP TABLE IF EXISTS keyword;
@@ -134,5 +135,21 @@ CREATE TABLE statement_keyword (
     UNIQUE KEY uq_stmt_kw (statement_id, keyword_id),
     CONSTRAINT fk_sk_statement FOREIGN KEY (statement_id) REFERENCES sql_statement(id),
     CONSTRAINT fk_sk_keyword   FOREIGN KEY (keyword_id)   REFERENCES keyword(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -----------------------------------------------------------------------------
+-- 8. SAVED_CONNECTION — conexiones persistentes a bases de datos de usuario
+-- -----------------------------------------------------------------------------
+CREATE TABLE saved_connection (
+    id                 VARCHAR(36)  NOT NULL PRIMARY KEY,
+    name               VARCHAR(100) NOT NULL,
+    dialect            VARCHAR(20)  NOT NULL,
+    host               VARCHAR(255) NOT NULL,
+    port               INT          NOT NULL,
+    database_name      VARCHAR(100) NOT NULL,
+    username           VARCHAR(100) NOT NULL,
+    encrypted_password VARCHAR(255) NOT NULL,
+    created_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
