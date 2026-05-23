@@ -5,7 +5,7 @@ import { compilerApi, dialectApi, connectionApi, catalogApi } from '../services/
 export const useCompilerStore = defineStore('compiler', () => {
 
   // ── Estado principal ──────────────────────────────────────────────
-  const sql          = ref('SELECT * FROM usuarios WHERE edad > 18;')
+  const sql          = ref('')
   const dialect      = ref('MYSQL')
   const connectionId = ref(null)
   const result       = ref(null)
@@ -18,6 +18,7 @@ export const useCompilerStore = defineStore('compiler', () => {
 
   // Keywords del dialecto activo (para autocompletado Monaco)
   const dialectKeywords = ref([])
+  const dialectSyntax   = ref([])
 
   // ── Getters ───────────────────────────────────────────────────────
   const hasErrors   = computed(() => result.value?.errors?.length  > 0)
@@ -42,17 +43,26 @@ export const useCompilerStore = defineStore('compiler', () => {
   }
 
   // ── Acciones: dialectos ───────────────────────────────────────────
+  const defaultSqlByDialect = {
+    MYSQL:      'SELECT * FROM usuarios WHERE edad > 18;',
+    POSTGRESQL: 'SELECT * FROM usuarios WHERE edad > 18;',
+    SQLSERVER:  'SELECT * FROM usuarios WHERE edad > 18;',
+    MONGODB:    'db.usuarios.find({ edad: { $gt: 18 } }).limit(10)',
+  }
+
   async function loadDialects() {
     dialects.value = await dialectApi.getAll()
     if (dialects.value.length && !dialect.value) {
       dialect.value = dialects.value[0].name
     }
-    await loadDialectKeywords()
+    await setDialect(dialect.value)
   }
 
   async function setDialect(name) {
     dialect.value = name
+    sql.value = defaultSqlByDialect[name] ?? sql.value
     await loadDialectKeywords()
+    await loadDialectSyntax()
   }
 
   async function loadDialectKeywords() {
@@ -61,6 +71,15 @@ export const useCompilerStore = defineStore('compiler', () => {
       dialectKeywords.value = await catalogApi.getKeywords(dialect.value)
     } catch (e) {
       dialectKeywords.value = []
+    }
+  }
+
+  async function loadDialectSyntax() {
+    if (!dialect.value) return
+    try {
+      dialectSyntax.value = await catalogApi.getSupportedStatements(dialect.value)
+    } catch (e) {
+      dialectSyntax.value = []
     }
   }
 
@@ -97,7 +116,7 @@ export const useCompilerStore = defineStore('compiler', () => {
   return {
     // estado
     sql, dialect, connectionId, result, loading,
-    dialects, connections, schema, dialectKeywords,
+    dialects, connections, schema, dialectKeywords, dialectSyntax,
     // getters
     hasErrors, hasWarnings, isValid,
     // acciones

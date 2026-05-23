@@ -14,10 +14,19 @@
     </div>
 
     <!-- Template de sintaxis -->
-    <div v-if="current" class="syntax-block">
-      <div class="syntax-label">Sintaxis</div>
+    <div v-if="current && current.supported" class="syntax-block">
+      <div class="syntax-header">
+        <span class="syntax-label">Sintaxis {{ props.dialect === 'MONGODB' ? 'nativa MongoDB' : 'SQL' }}</span>
+        <span v-if="props.dialect === 'MONGODB'" class="native-badge">db.</span>
+      </div>
       <pre class="syntax-template">{{ current.syntaxTemplate }}</pre>
-      <p v-if="current.notes" class="syntax-notes">{{ current.notes }}</p>
+      <div v-if="current.notes" class="syntax-notes">
+        <span class="notes-icon">💡</span> {{ current.notes }}
+      </div>
+    </div>
+    <div v-else-if="current && !current.supported" class="syntax-block unsupported">
+      <div class="syntax-label">{{ selected.replace('_', ' ') }}</div>
+      <p class="unsupported-text">{{ current.notes || 'No soportado para ' + props.dialect }}</p>
     </div>
 
     <!-- Keywords de la sentencia seleccionada -->
@@ -119,4 +128,15 @@ async function select(name) {
 .exclusive .kw-role { background: #3d1a5c; color: #a78bfa; }
 
 .empty { color: #475569; font-size: 12px; padding: 8px; }
+
+.syntax-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.syntax-header .syntax-label { margin-bottom: 0; }
+.native-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
+  background: #1a3a1a; color: #4ade80; border: 1px solid #2d6a2d;
+  letter-spacing: .05em;
+}
+.unsupported { opacity: .6; }
+.unsupported-text { color: #64748b; font-size: 12px; margin: 0; }
+.notes-icon { font-size: 12px; }
 </style>

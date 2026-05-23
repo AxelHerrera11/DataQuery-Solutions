@@ -12,7 +12,7 @@
             v-for="d in store.dialects" :key="d.name"
             :class="['dialect-btn', { active: store.dialect === d.name }]"
             :style="store.dialect === d.name ? { borderColor: d.brandColor } : {}"
-            @click="store.dialect = d.name"
+            @click="store.setDialect(d.name)"
           >
             <span class="dialect-dot" :style="{ background: d.brandColor }" />
             {{ d.displayName }}
@@ -70,9 +70,11 @@
         </div>
       </div>
 
-      <!-- Editor SQL -->
+      <!-- Editor SQL / MongoDB -->
       <SqlEditor
         v-model="store.sql"
+        :dialect="store.dialect"
+        :keywords="store.dialectKeywords"
         :errors="store.result?.errors ?? []"
         :warnings="store.result?.warnings ?? []"
       />

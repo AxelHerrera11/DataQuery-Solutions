@@ -642,8 +642,8 @@ INSERT IGNORE INTO statement_syntax (dialect_id, statement_id, supported, syntax
  'SELECT [TOP {n}] [DISTINCT] {cols|*} FROM {table} [WITH(NOLOCK)] [JOIN {table} ON {cond}] [WHERE {cond}] [GROUP BY {cols}] [HAVING {cond}] [ORDER BY {cols}] [OFFSET {n} ROWS FETCH NEXT {m} ROWS ONLY]',
  'Usa TOP en lugar de LIMIT'),
 (4,(SELECT id FROM sql_statement WHERE name='SELECT'),1,
- 'SELECT {cols|*} FROM {coleccion} [WHERE {cond}] [ORDER BY {campo}] [LIMIT {n}] [SKIP {m}]',
- 'Mapea internamente a find() con proyección y filtro'),
+ 'db.{coleccion}.find({filtro}, {proyeccion}).limit({n}).skip({m}).sort({campo}: 1|-1)}\n\n  SQL alternativo: SELECT {cols|*} FROM {coleccion} [WHERE {cond}] [ORDER BY {campo}] [LIMIT {n}] [SKIP {m}]',
+ 'Modo nativo: db.coleccion.find({ edad: {$gt: 18} }, { nombre: 1 }).limit(10).skip(0)'),
 -- INSERT
 (1,(SELECT id FROM sql_statement WHERE name='INSERT'),1,
  'INSERT INTO {table} [({cols})] VALUES ({vals}) [, ({vals})...] [ON DUPLICATE KEY UPDATE {col}={val}]',
@@ -655,8 +655,8 @@ INSERT IGNORE INTO statement_syntax (dialect_id, statement_id, supported, syntax
  'INSERT INTO {table} [({cols})] VALUES ({vals}) [OUTPUT INSERTED.*]',
  'OUTPUT equivale a RETURNING'),
 (4,(SELECT id FROM sql_statement WHERE name='INSERT'),1,
- 'INSERT INTO {coleccion} VALUES ({json_doc}) [, ({json_doc})...]',
- 'Mapea a insertOne() / insertMany()'),
+ 'db.{coleccion}.insertOne({ documento })\ndb.{coleccion}.insertMany([{ doc1 }, { doc2 }])\n\n  SQL alternativo: INSERT INTO {coleccion} VALUES ({json_doc})',
+ 'Modo nativo: db.usuarios.insertOne({ nombre: "Juan", edad: 30 })'),
 -- UPDATE
 (1,(SELECT id FROM sql_statement WHERE name='UPDATE'),1,
  'UPDATE {table} SET {col}={val} [, {col}={val}...] [WHERE {cond}] [ORDER BY {col}] [LIMIT {n}]',
@@ -668,8 +668,8 @@ INSERT IGNORE INTO statement_syntax (dialect_id, statement_id, supported, syntax
  'UPDATE {table} SET {col}={val} [OUTPUT DELETED.*, INSERTED.*] [FROM {join}] [WHERE {cond}]',
  'OUTPUT captura valores antes y después'),
 (4,(SELECT id FROM sql_statement WHERE name='UPDATE'),1,
- 'UPDATE {coleccion} SET {campo}={val} [WHERE {cond}]',
- 'Mapea a updateOne() / updateMany() con operador $set'),
+ 'db.{coleccion}.updateOne({ filtro }, { $set: { campo: valor } })\ndb.{coleccion}.updateMany({ filtro }, { $set: { campo: valor } })\n\n  SQL alternativo: UPDATE {coleccion} SET {campo}={val} [WHERE {cond}]',
+ 'Modo nativo: db.usuarios.updateOne({ edad: {$gt: 30} }, { $set: { activo: false } })'),
 -- DELETE
 (1,(SELECT id FROM sql_statement WHERE name='DELETE'),1,
  'DELETE FROM {table} [WHERE {cond}] [ORDER BY {col}] [LIMIT {n}]',NULL),
@@ -679,8 +679,8 @@ INSERT IGNORE INTO statement_syntax (dialect_id, statement_id, supported, syntax
 (3,(SELECT id FROM sql_statement WHERE name='DELETE'),1,
  'DELETE [TOP ({n})] FROM {table} [OUTPUT DELETED.*] [WHERE {cond}]',NULL),
 (4,(SELECT id FROM sql_statement WHERE name='DELETE'),1,
- 'DELETE FROM {coleccion} [WHERE {cond}]',
- 'Mapea a deleteOne() / deleteMany()'),
+ 'db.{coleccion}.deleteOne({ filtro })\ndb.{coleccion}.deleteMany({ filtro })\n\n  SQL alternativo: DELETE FROM {coleccion} [WHERE {cond}]',
+ 'Modo nativo: db.usuarios.deleteMany({ activo: false })'),
 -- CREATE TABLE
 (1,(SELECT id FROM sql_statement WHERE name='CREATE_TABLE'),1,
  'CREATE TABLE [IF NOT EXISTS] {table} ({col} {tipo} [NOT NULL] [DEFAULT {val}] [AUTO_INCREMENT] [PRIMARY KEY], ...) [ENGINE=InnoDB] [DEFAULT CHARSET=utf8mb4]',NULL),

@@ -7,6 +7,7 @@ import com.umg.compilador.compiler.semantic.*;
 import com.umg.compilador.compiler.token.Token;
 import com.umg.compilador.dialect.DBDialect;
 import com.umg.compilador.dialect.DialectRegistry;
+import com.umg.compilador.dialect.impl.MongoDialect;
 import com.umg.compilador.dto.*;
 import com.umg.compilador.schema.DatabaseSchema;
 import org.springframework.stereotype.Service;
@@ -42,7 +43,33 @@ public class CompilerService {
 
         Set<String> dialectKeywords = dialect.getDialectKeywords();
 
-        // ── FASE 1: LÉXICO ────────────────────────────────────────────
+        // ── MongoDB NATIVE MODE ────────────────────────────────────────
+        if ("MONGODB".equals(dialectName)
+            && request.sql() != null && request.sql().trim().startsWith("db.")) {
+
+            MongoDialect mongoDialect = dialect instanceof MongoDialect md
+                ? md : new MongoDialect();
+
+            List<String> nativeErrors = mongoDialect.validateNativeSyntax(request.sql());
+            nativeErrors.forEach(msg ->
+                errors.add(new CompileError("DIALECT", 0, 0, msg, "ERROR"))
+            );
+
+            boolean valid = errors.isEmpty();
+            String astJson = valid
+                ? "{\"type\":\"MongoNativeQuery\",\"raw\":\""
+                    + escapeJson(request.sql()) + "\"}"
+                : null;
+
+            return new CompileResponse(valid, errors, warnings, astJson,
+                new CompileResponse.PhaseResult(true, "Nativo MongoDB"),
+                valid
+                    ? new CompileResponse.PhaseResult(true, "Sintaxis MongoDB válida")
+                    : new CompileResponse.PhaseResult(false, "Sintaxis MongoDB con errores"),
+                new CompileResponse.PhaseResult(true, "Modo nativo — semántica no aplicada"));
+        }
+
+        // ── FASE 1: LÉXICO (modo SQL) ─────────────────────────────────
         List<Token> tokens;
         try {
             Lexer lexer = new Lexer(request.sql(), dialectKeywords);
